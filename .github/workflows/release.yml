@@ -235,13 +235,17 @@ jobs:
         run: gh release edit "$TAG" --draft=false
 
   # ---------------------------------------------------------------- stage 3
+  #
+  # Only livekit/rust-sdks publishes to a registry. In a fork, stages 1 and 2
+  # run as they are, the npm publish is a dry run, and the other jobs of this
+  # stage are skipped. A fork can therefore test a release without a publish.
 
   # Runs `cargo publish --no-verify` for each released crate, dependencies
   # first. A version that crates.io has is skipped, so a second run is safe.
   # A failure blocks the dependents of that crate and nothing else.
   publish-crates:
     needs: release
-    if: ${{ !cancelled() && needs.release.result == 'success' && (needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch') }}
+    if: ${{ !cancelled() && needs.release.result == 'success' && github.repository == 'livekit/rust-sdks' && (needs.release.outputs.released == 'true' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -286,13 +290,13 @@ jobs:
     with:
       ref: ${{ github.event.pull_request.merge_commit_sha || inputs.ref || github.sha }}
       build: false
-      dry_run: ${{ inputs.dry_run || false }}
+      dry_run: ${{ inputs.dry_run || github.repository != 'livekit/rust-sdks' }}
 
   # The Swift and Android packages. They build from the tag and publish.
   uniffi-packages:
     name: UniFFI packages
     needs: [plan, release]
-    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.ffi_build == 'true' && inputs.dry_run != true }}
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.ffi_build == 'true' && inputs.dry_run != true && github.repository == 'livekit/rust-sdks' }}
     permissions:
       contents: read
     uses: ./.github/workflows/uniffi-packages.yml
@@ -309,7 +313,7 @@ jobs:
   uniffi-dart:
     name: UniFFI Dart package
     needs: [plan, release]
-    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.ffi_build == 'true' && inputs.dry_run != true }}
+    if: ${{ !cancelled() && needs.release.result == 'success' && needs.plan.outputs.ffi_build == 'true' && inputs.dry_run != true && github.repository == 'livekit/rust-sdks' }}
     runs-on: ubuntu-latest
     # A Dart run takes 10 to 30 minutes.
     timeout-minutes: 120
